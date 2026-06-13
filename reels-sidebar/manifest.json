@@ -10,6 +10,7 @@
   },
   "permissions": ["storage"],
   "host_permissions": ["https://claude.ai/*"],
+  "background": { "service_worker": "src/background.js" },
   "options_ui": {
     "page": "src/options/options.html",
     "open_in_tab": true

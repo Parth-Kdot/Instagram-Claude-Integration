@@ -18,6 +18,14 @@
   const RSFC = window.RSFC || {};
   if (!RSFC.storage) return; // dependencies failed to load -> bail quietly
 
+  // DEV convenience: let the page ask the background worker to reload the
+  // extension (used during development/testing). Remove before shipping.
+  window.addEventListener('message', (e) => {
+    if (e.source === window && e.data && e.data.source === 'rsfc-devreload') {
+      try { chrome.runtime.sendMessage({ type: 'rsfc-devreload' }); } catch (err) {}
+    }
+  });
+
   let settings = null;
   let lifecycle = null;
   let detector = null;
