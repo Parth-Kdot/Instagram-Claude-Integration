@@ -146,5 +146,13 @@
       if (val) { reelUrls.push(val); $('reelInput').value = ''; renderReels(); }
     };
     $('save').onclick = save;
+    $('clearHistory').onclick = () => {
+      const btn = $('clearHistory');
+      storage.clearFeedMemory().then(() => {
+        const orig = btn.textContent;
+        btn.textContent = 'Cleared ✓';
+        setTimeout(() => { btn.textContent = orig; }, 1500);
+      });
+    };
   });
 })();

@@ -52,6 +52,11 @@
     { id: 'memes',      label: 'Memes',           query: 'meme shorts' }
   ];
 
+  // chrome.storage.local keys for feed memory (see getFeedMemory below).
+  const PLAYED_KEY = 'rsfc_played_ids';
+  const TOKENS_KEY = 'rsfc_feed_tokens';
+  const PLAYED_CAP = 5000; // most-recent N played IDs kept (bounds storage size)
+
   /** Default settings. Everything the options page edits has a default here. */
   const DEFAULTS = {
     enabled: true,
@@ -124,6 +129,61 @@
       return () => {
         try { chrome.storage.onChanged.removeListener(handler); } catch (e) { /* no-op */ }
       };
+    },
+
+    // --- feed memory (chrome.storage.local) ----------------------------------
+    // Persists which videos have already been played and how far we've paginated
+    // each search, so a fresh, never-before-seen reel plays every time the panel
+    // opens — across reloads and sessions. Stored in LOCAL (not sync) because the
+    // played list grows and is device-local by nature.
+
+    /** Load { played: string[], tokens: {query: pageToken} }. */
+    getFeedMemory() {
+      return new Promise((resolve) => {
+        try {
+          chrome.storage.local.get([PLAYED_KEY, TOKENS_KEY], (res) => {
+            resolve({
+              played: (res && res[PLAYED_KEY]) || [],
+              tokens: (res && res[TOKENS_KEY]) || {}
+            });
+          });
+        } catch (e) { resolve({ played: [], tokens: {} }); }
+      });
+    },
+
+    /** Append played video IDs (de-duped, capped to the most recent PLAYED_CAP). */
+    addPlayedIds(ids) {
+      return new Promise((resolve) => {
+        if (!ids || !ids.length) { resolve(); return; }
+        try {
+          chrome.storage.local.get([PLAYED_KEY], (res) => {
+            let arr = (res && res[PLAYED_KEY]) || [];
+            const set = new Set(arr);
+            ids.forEach((id) => { if (id && !set.has(id)) { set.add(id); arr.push(id); } });
+            if (arr.length > PLAYED_CAP) arr = arr.slice(arr.length - PLAYED_CAP);
+            const o = {}; o[PLAYED_KEY] = arr;
+            chrome.storage.local.set(o, () => resolve());
+          });
+        } catch (e) { resolve(); }
+      });
+    },
+
+    /** Persist per-query pagination tokens so we resume where we left off. */
+    saveFeedTokens(tokens) {
+      return new Promise((resolve) => {
+        try {
+          const o = {}; o[TOKENS_KEY] = tokens || {};
+          chrome.storage.local.set(o, () => resolve());
+        } catch (e) { resolve(); }
+      });
+    },
+
+    /** Clear all feed memory (used by the options "reset history" control). */
+    clearFeedMemory() {
+      return new Promise((resolve) => {
+        try { chrome.storage.local.remove([PLAYED_KEY, TOKENS_KEY], () => resolve()); }
+        catch (e) { resolve(); }
+      });
     }
   };
 

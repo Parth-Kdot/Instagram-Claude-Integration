@@ -58,7 +58,10 @@
       this.exhausted = [];      // exhausted[i] = no more pages
       this.fetching = [];       // fetching[i] = a fetch is in flight
       this.channelCount = {};   // channelId -> count currently in the feed
-      this.seen = new Set();    // de-dupe videoIds across the whole session
+      this.seen = new Set();    // videoIds to skip (this session + persisted history)
+      this.persistedTokens = {};// query -> pageToken loaded from feed memory
+      this._pendingPlayed = []; // played IDs waiting to be persisted
+      this._persistTimer = null;
       this.ptr = 0;             // round-robin pointer across buckets
 
       this.history = [];        // played videoIds (for getPrevious)
@@ -92,21 +95,27 @@
       if (this.usingKey) {
         const n = this.queries.length;
         this.buckets = this.queries.map(() => []);
-        this.tokens = this.queries.map(() => '');
         this.exhausted = this.queries.map(() => false);
         this.fetching = this.queries.map(() => false);
         // Randomize which category leads so it isn't always the same one first.
         this.ptr = Math.floor(Math.random() * n) - 1;
-        RSFC.log('yt.mount key mode, queries=' + JSON.stringify(this.queries));
-        this._nextVideo().then((id) => {
-          if (id) {
-            this._pushHistory(id);
-            this._send({ type: 'init', mountId: this.mountId, videoId: id, muted: this.muted });
-            this._prefetchUpcoming();
-          } else {
-            this._showOverlay('No videos returned. Check that your API key is valid, the YouTube '
-              + 'Data API v3 is enabled, and your selected categories aren\'t empty.');
-          }
+        // Load played history + saved pagination so every visit serves a
+        // never-before-seen reel and we resume searches where we left off.
+        RSFC.storage.getFeedMemory().then((mem) => {
+          this.seen = new Set(mem.played || []);
+          this.persistedTokens = mem.tokens || {};
+          this.tokens = this.queries.map((q) => this.persistedTokens[q] || '');
+          RSFC.log('yt.mount key mode, played=' + this.seen.size + ', queries=' + JSON.stringify(this.queries));
+          this._nextVideo().then((id) => {
+            if (id) {
+              this._pushHistory(id);
+              this._send({ type: 'init', mountId: this.mountId, videoId: id, muted: this.muted });
+              this._prefetchUpcoming();
+            } else {
+              this._showOverlay('No fresh videos right now — you may have seen the latest results '
+                + 'for these categories. Add more categories or check your API quota.');
+            }
+          });
         });
       } else {
         this.playlistMode = true;
@@ -172,6 +181,8 @@
         .catch((err) => {
           this.fetching[i] = false;
           RSFC.log('yt fetch bucket ' + i + ' FAILED: ' + (err && err.message));
+          // A persisted pageToken can go stale across sessions; fall back to page 1.
+          if (this.tokens[i]) this.tokens[i] = '';
           if (!this.history.length) {
             this._showOverlay('YouTube API error. Check that your key is valid, the YouTube '
               + 'Data API v3 is enabled, and (if you restricted the key) that it permits that API.');
@@ -220,6 +231,24 @@
       this.history.push(id);
       if (this.history.length > HISTORY_MAX) this.history.shift();
       this.hpos = this.history.length - 1;
+      this._markPlayed(id);
+    }
+
+    /** Record a video as played and (debounced) persist history + pagination. */
+    _markPlayed(id) {
+      if (!id) return;
+      this.seen.add(id);
+      this._pendingPlayed.push(id);
+      if (this._persistTimer) return;
+      this._persistTimer = setTimeout(() => {
+        this._persistTimer = null;
+        const ids = this._pendingPlayed; this._pendingPlayed = [];
+        try { RSFC.storage.addPlayedIds(ids); } catch (e) {}
+        const map = Object.assign({}, this.persistedTokens);
+        this.queries.forEach((q, i) => { if (this.tokens[i]) map[q] = this.tokens[i]; });
+        this.persistedTokens = map;
+        try { RSFC.storage.saveFeedTokens(map); } catch (e) {}
+      }, 1200);
     }
 
     _load(id) { RSFC.log('yt load id=' + id); this._send({ type: 'load', videoId: id, muted: this.muted }); }
@@ -286,6 +315,16 @@
     }
 
     destroy() {
+      // Flush any unsaved played history + pagination immediately on teardown.
+      if (this._persistTimer) { clearTimeout(this._persistTimer); this._persistTimer = null; }
+      if (this._pendingPlayed && this._pendingPlayed.length) {
+        try { RSFC.storage.addPlayedIds(this._pendingPlayed); } catch (e) {}
+        this._pendingPlayed = [];
+      }
+      const map = Object.assign({}, this.persistedTokens);
+      (this.queries || []).forEach((q, i) => { if (this.tokens && this.tokens[i]) map[q] = this.tokens[i]; });
+      try { RSFC.storage.saveFeedTokens(map); } catch (e) {}
+
       this._send({ type: 'destroy' });
       if (this.onEvt) { window.removeEventListener('message', this.onEvt); this.onEvt = null; }
       this._hideOverlay();
