@@ -108,10 +108,12 @@
       if (!data || data.source !== NET_SOURCE) return;
 
       if (data.type === 'gen-start') {
+        RSFC.log('detector: NET gen-start');
         netActive = true;
         lastNetStartAt = Date.now();
         lifecycle.start();
       } else if (data.type === 'gen-end') {
+        RSFC.log('detector: NET gen-end');
         netActive = false;
         lifecycle.end();
       }

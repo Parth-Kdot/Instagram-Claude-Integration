@@ -11,6 +11,17 @@
 
   const RSFC = (window.RSFC = window.RSFC || {});
 
+  // Lightweight, prefixed logger. Toggle off by setting window.RSFC_DEBUG=false.
+  // Kept on by default while we stabilize playback; logs only timing/state, never
+  // prompt or response text.
+  RSFC.log = function () {
+    try {
+      if (window.RSFC_DEBUG === false) return;
+      const args = Array.prototype.slice.call(arguments);
+      console.log.apply(console, ['[RSFC]'].concat(args));
+    } catch (e) { /* no-op */ }
+  };
+
   /**
    * Curated pool of ready-made interest categories. Each maps to a YouTube
    * search query tuned to surface Shorts. The options page renders these as

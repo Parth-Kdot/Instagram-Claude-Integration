@@ -38,10 +38,17 @@
   let igFrame = null;
   let ytReadyPosted = false;
   let currentMuted = true;
+  let watchdog = null;
 
-  function toParent(type) {
-    try { PARENT.postMessage({ source: 'rsfc-player', type: type }, '*'); } catch (e) {}
+  function toParent(type, info) {
+    try { PARENT.postMessage({ source: 'rsfc-player', type: type, info: info }, '*'); } catch (e) {}
   }
+
+  function log() {
+    try { console.log.apply(console, ['[RSFC-player]'].concat([].slice.call(arguments))); } catch (e) {}
+  }
+
+  function clearWatchdog() { if (watchdog) { clearTimeout(watchdog); watchdog = null; } }
 
   function clearHost() {
     host.innerHTML = '';
@@ -85,10 +92,18 @@
 
   function loadYouTube(videoId, muted) {
     currentMuted = !!muted;
+    log('loadYouTube', videoId);
+    toParent('video-requested', videoId);
     ensureYTFrame();
     ytReadyPosted = false; // re-arm the one-shot 'ready' for this new video
     attachHandshake();
     ytFrame.src = YT_ORIGIN + '/embed/' + encodeURIComponent(videoId) + '?' + ytParams();
+    // Watchdog: if the embed never reports ready, tell the controller so it can
+    // skip to the next video instead of showing a permanent black frame.
+    clearWatchdog();
+    watchdog = setTimeout(() => {
+      if (!ytReadyPosted) { log('watchdog: no ready for', videoId); toParent('error', 'timeout'); }
+    }, 6000);
   }
 
   function loadPlaylist(listId, muted) {
@@ -131,7 +146,7 @@
     if (!data || typeof data !== 'object') return;
 
     if (data.event === 'onReady' || data.event === 'initialDelivery' || data.event === 'apiInfoDelivery') {
-      if (!ytReadyPosted) { ytReadyPosted = true; toParent('ready'); }
+      if (!ytReadyPosted) { ytReadyPosted = true; clearWatchdog(); log('yt ready'); toParent('ready'); }
       ytCommand('playVideo'); // nudge playback (helps when autoplay is gated)
     }
     if (data.event === 'infoDelivery' && data.info && typeof data.info.playerState !== 'undefined') {
@@ -143,13 +158,14 @@
 
   // --- messages from the content-script controller ---------------------------
   function onControllerMessage(e) {
+    const d = e.data;
+    if (!d || d.source !== 'rsfc-ctrl') return;
     // Only obey our embedding parent (the content-script controller). Without
     // this, any frame on claude.ai that grabbed a handle to this web-accessible
     // page could drive what we embed. The legitimate controller posts from the
     // top window that hosts this iframe, i.e. window.parent.
-    if (e.source !== window.parent) return;
-    const d = e.data;
-    if (!d || d.source !== 'rsfc-ctrl') return;
+    if (e.source !== PARENT) { toParent('debug', 'ctrl-rejected-source'); return; }
+    log('ctrl', d.type);
     switch (d.type) {
       case 'load-youtube':   loadYouTube(d.videoId, d.muted); break;
       case 'load-playlist':  loadPlaylist(d.playlistId, d.muted); break;

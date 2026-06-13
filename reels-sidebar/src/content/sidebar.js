@@ -143,15 +143,42 @@
     }
 
     function mountSource() {
+      if (!videoHost) { RSFC.log('mountSource: no videoHost'); return; }
+      // Defensive: never mount on top of an existing source.
+      if (source) { try { source.destroy(); } catch (e) {} source = null; }
+      videoHost.innerHTML = '';
+      try {
+        const made = makeSource();
+        source = made.inst;
+        RSFC.log('mountSource: source=' + (settings.activeSource) + ' usingKeyConfig=' + !!(settings.youtube && settings.youtube.apiKey));
+        source.mount(videoHost, { muted: settings.defaultMute, config: made.config });
+        RSFC.log('mountSource: mounted, hostChildren=' + videoHost.children.length);
+      } catch (e) {
+        RSFC.log('mountSource ERROR: ' + (e && e.message));
+        showStatus('Reels error: ' + (e && e.message ? e.message : 'failed to start video source'));
+      }
+    }
+
+    /** Visible fallback text in the video area (so failures are never silent). */
+    function showStatus(text) {
       if (!videoHost) return;
-      const made = makeSource();
-      source = made.inst;
-      source.mount(videoHost, { muted: settings.defaultMute, config: made.config });
+      let s = videoHost.querySelector('.rsfc-empty');
+      if (!s) {
+        s = el('div', 'rsfc-empty');
+        videoHost.appendChild(s);
+      }
+      s.textContent = text;
     }
 
     // ---- public API ---------------------------------------------------------
     function show() {
-      if (closedForThisGen) return;        // user closed it for this generation
+      if (closedForThisGen) { RSFC.log('show: skipped (closedForThisGen)'); return; }
+      // Defensive: if a stale panel from a prior pipeline lingers in the DOM,
+      // remove it so we never end up with two sidebars (one empty/black).
+      document.querySelectorAll('#rsfc-sidebar').forEach((n) => {
+        if (n !== root && n.parentNode) n.parentNode.removeChild(n);
+      });
+      RSFC.log('show: enter (root=' + !!root + ' source=' + !!source + ')');
       if (!root) build();
       if (!source) mountSource();
       visible = true;
@@ -164,14 +191,13 @@
       visible = false;
       if (root) root.classList.remove('rsfc-open');
       applyPush(false);
-      if (source && source.pause) source.pause();
-      // Destroy the source after the slide-out so playback fully stops and we
-      // don't leak players across generations.
-      const toDestroy = source;
+      // Destroy the source SYNCHRONOUSLY. Deferring it caused a race: a new
+      // generation starting during the slide-out would mount a fresh source into
+      // the (reused) video host, and the old source's delayed teardown then
+      // wiped that new iframe — leaving a permanently black panel.
+      RSFC.log('hide: tearing down source');
+      try { source && source.destroy(); } catch (e) {}
       source = null;
-      setTimeout(() => {
-        try { toDestroy && toDestroy.destroy(); } catch (e) {}
-      }, settings.animations ? 350 : 0);
     }
 
     function destroy() {

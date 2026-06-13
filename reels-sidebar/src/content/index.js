@@ -39,10 +39,12 @@
     sidebar.onUserClose(() => { /* flag handled inside sidebar + reset on start */ });
 
     lifecycle.on('show', () => {
+      RSFC.log('lifecycle -> show');
       sidebar.resetClosedFlag(); // a new generation re-enables the panel
       sidebar.show();
     });
     lifecycle.on('hide', () => {
+      RSFC.log('lifecycle -> hide');
       sidebar.hide();
     });
 

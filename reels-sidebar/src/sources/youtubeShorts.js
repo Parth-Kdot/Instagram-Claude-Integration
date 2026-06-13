@@ -69,8 +69,11 @@
         return;
       }
 
+      RSFC.log('yt.mount usingKey=' + this.usingKey + ' playlists=' + playlistIds.length + ' queries=' + JSON.stringify(this.queries));
       this.frame = new RSFC.PlayerFrame(container);
+      this._showOverlay(this.usingKey ? 'Loading videos…' : 'Loading playlist…');
       this.frame.on((d) => {
+        RSFC.log('yt player msg: ' + d.type);
         // Auto-advance rules:
         //  - 'error' (dead/blocked video): skip in either mode.
         //  - 'ended': only key mode advances; in no-key mode the looping
@@ -82,7 +85,9 @@
 
       if (this.usingKey) {
         this._fillQueue().then(() => {
+          RSFC.log('yt initial fill: queue=' + this.queue.length);
           if (this.queue.length) { this.queuePos = 0; this._playCurrent(); }
+          else this._showOverlay('No videos returned. Check your API key, that YouTube Data API v3 is enabled, and your selected categories.');
         });
       } else {
         // No-key: play a public playlist (loops for near-endless scroll).
@@ -142,11 +147,15 @@
         + (this.pageToken ? '&pageToken=' + encodeURIComponent(this.pageToken) : '')
         + '&key=' + encodeURIComponent(key);
 
+      RSFC.log('yt fetch: q="' + q + '" page=' + (this.pageToken || 'first'));
       return fetch(url)
         .then((r) => r.json())
         .then((data) => {
           this.fetching = false;
-          if (data && data.error) throw new Error('yt-api');
+          if (data && data.error) {
+            RSFC.log('yt fetch API error: ' + (data.error.code) + ' ' + (data.error.message || '').slice(0, 120));
+            throw new Error('yt-api');
+          }
           const fresh = (data.items || [])
             .map((it) => it.id && it.id.videoId)
             .filter(Boolean)
@@ -162,15 +171,15 @@
           }
           return fresh.length;
         })
-        .catch(() => {
+        .catch((err) => {
           this.fetching = false;
+          RSFC.log('yt fetch FAILED: ' + (err && err.message));
           // Only hard-fail to a message if we never managed to play anything.
-          if (this.container && !this.queue.length) {
-            if (this.frame) { this.frame.destroy(); this.frame = null; }
-            this._message(this.container,
+          if (!this.queue.length) {
+            this._showOverlay(
               'YouTube API error. Check that your key is valid, the YouTube Data API v3 is enabled, '
               + 'and (if you restricted the key) that it permits the YouTube Data API. '
-              + 'A public playlist ID works as a no-key fallback.');
+              + 'A public Shorts playlist ID works as a no-key fallback.');
           }
           return 0;
         });
@@ -179,6 +188,7 @@
     _playCurrent() {
       if (!this.frame) return;
       const id = this.queue[this.queuePos];
+      RSFC.log('yt play idx=' + this.queuePos + ' id=' + id);
       if (id) {
         this._hideOverlay();
         this.frame.send({ type: 'load-youtube', videoId: id, muted: this.muted });
