@@ -62,9 +62,15 @@
     var el = document.getElementById(opts.mountId);
     if (!el) { post('error', { code: 'no-mount' }); return; }
     destroyPlayer();
+    // controls:0 hides the play/pause button, the red progress/scrubber, the
+    // timestamp and the fullscreen button; iv_load_policy:3 hides annotations;
+    // fs:0 / disablekb:1 remove the fullscreen button and keyboard hints. The
+    // title/channel hover-chrome is additionally suppressed by the tap layer the
+    // sidebar puts over the player.
     var vars = {
       autoplay: 1, mute: opts.muted ? 1 : 0, playsinline: 1,
-      rel: 0, modestbranding: 1, controls: 1, fs: 1
+      rel: 0, modestbranding: 1, controls: 0, fs: 0,
+      iv_load_policy: 3, disablekb: 1
     };
     var cfg = { width: '100%', height: '100%', playerVars: vars, events: {
       onReady: function (e) {

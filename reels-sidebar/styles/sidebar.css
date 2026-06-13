@@ -94,6 +94,17 @@
   opacity: 0.75;
 }
 
+/* Transparent layer over the player: suppresses YouTube's hover chrome
+ * (title/channel/controls) for a clean full-bleed video and captures tap to
+ * toggle play/pause. Wheel and touch still bubble to the host's scroll handlers. */
+.rsfc-tap-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  cursor: pointer;
+  background: transparent;
+}
+
 .rsfc-nav {
   flex: 0 0 auto;
   display: flex;

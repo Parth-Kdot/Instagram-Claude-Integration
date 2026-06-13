@@ -152,11 +152,27 @@
         source = made.inst;
         RSFC.log('mountSource: source=' + (settings.activeSource) + ' usingKeyConfig=' + !!(settings.youtube && settings.youtube.apiKey));
         source.mount(videoHost, { muted: settings.defaultMute, config: made.config });
+        addTapLayer();
         RSFC.log('mountSource: mounted, hostChildren=' + videoHost.children.length);
       } catch (e) {
         RSFC.log('mountSource ERROR: ' + (e && e.message));
         showStatus('Reels error: ' + (e && e.message ? e.message : 'failed to start video source'));
       }
+    }
+
+    /**
+     * Transparent layer over the player. It (a) sits above the YouTube iframe so
+     * the player's title/channel/controls don't appear on hover, giving a clean
+     * full-bleed video, and (b) captures tap (play/pause) while letting wheel /
+     * swipe bubble to the video host's scroll handlers (next/previous).
+     */
+    function addTapLayer() {
+      if (!videoHost) return;
+      const layer = el('div', 'rsfc-tap-layer');
+      layer.addEventListener('click', () => {
+        if (source && source.togglePlay) source.togglePlay();
+      });
+      videoHost.appendChild(layer); // appended last → on top of the player
     }
 
     /** Visible fallback text in the video area (so failures are never silent). */
