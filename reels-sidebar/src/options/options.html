@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Reels Sidebar for Claude — Settings</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #16140f;
+      --bg-grad-1: #1d1a13;
+      --bg-grad-2: #100f0c;
+      --surface: #201d17;
+      --surface-2: #272219;
+      --border: #3a3327;
+      --border-soft: #2c281f;
+      --text: #f3efe6;
+      --text-dim: #b3ab98;
+      --text-faint: #847c6b;
+      --accent: #d97757;
+      --accent-hover: #e08a6e;
+      --accent-soft: rgba(217, 119, 87, 0.14);
+      --ok: #7fd1a0;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --maxw: 860px;
+      --font: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body { margin: 0; }
+    body {
+      font-family: var(--font);
+      color: var(--text);
+      background:
+        radial-gradient(1100px 600px at 78% -8%, rgba(217,119,87,0.10), transparent 60%),
+        linear-gradient(180deg, var(--bg-grad-1), var(--bg-grad-2));
+      background-attachment: fixed;
+      min-height: 100vh;
+      padding: 48px 24px 140px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap { max-width: var(--maxw); margin: 0 auto; }
+
+    /* ---------- header ---------- */
+    .hero {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 8px;
+    }
+    .hero .mark {
+      width: 46px; height: 46px; border-radius: 13px; flex: 0 0 auto;
+      background: linear-gradient(150deg, var(--accent), #b85c41);
+      display: grid; place-items: center;
+      box-shadow: 0 6px 20px rgba(217,119,87,0.30);
+    }
+    .hero .mark svg { width: 22px; height: 22px; display: block; }
+    .hero h1 { font-size: 22px; font-weight: 680; letter-spacing: -0.01em; margin: 0; }
+    .hero p { margin: 3px 0 0; color: var(--text-dim); font-size: 13.5px; }
+
+    /* ---------- cards ---------- */
+    .card {
+      background: linear-gradient(180deg, var(--surface), #1c1913);
+      border: 1px solid var(--border-soft);
+      border-radius: var(--radius);
+      padding: 6px 22px 10px;
+      margin-top: 22px;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 12px 30px rgba(0,0,0,0.22);
+    }
+    .card > .card-head {
+      display: flex; align-items: baseline; justify-content: space-between;
+      gap: 12px; padding: 16px 0 4px;
+    }
+    .card-head h2 { font-size: 13px; font-weight: 660; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-dim); margin: 0; }
+    .card-head .sub { font-size: 12px; color: var(--text-faint); }
+
+    /* ---------- rows ---------- */
+    .row {
+      display: grid; grid-template-columns: 1fr auto; align-items: center;
+      gap: 16px; padding: 14px 0; border-top: 1px solid var(--border-soft);
+    }
+    .row:first-of-type { border-top: none; }
+    .row .label { font-size: 14px; font-weight: 520; }
+    .row .desc { font-size: 12px; color: var(--text-faint); margin-top: 2px; line-height: 1.45; }
+    .row .control { justify-self: end; }
+
+    /* ---------- inputs ---------- */
+    input[type="text"], input[type="number"], select, textarea {
+      background: #14110c;
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 9px 12px; font-size: 13.5px; font-family: var(--font);
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    input[type="text"], input[type="number"], select { min-width: 150px; }
+    input[type="number"] { width: 110px; }
+    textarea { width: 100%; min-height: 64px; resize: vertical; line-height: 1.5; }
+    input:focus, select:focus, textarea:focus {
+      outline: none; border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    select {
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23b3ab98' stroke-width='2.5'><path d='M6 9l6 6 6-6'/></svg>");
+      background-repeat: no-repeat; background-position: right 11px center; padding-right: 32px;
+    }
+
+    /* ---------- toggle switch ---------- */
+    .switch { position: relative; display: inline-block; width: 44px; height: 26px; }
+    .switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+    .switch .track {
+      position: absolute; inset: 0; cursor: pointer; border-radius: 999px;
+      background: #3a3327; transition: background 0.18s; border: 1px solid var(--border);
+    }
+    .switch .track::before {
+      content: ""; position: absolute; height: 18px; width: 18px; left: 3px; top: 3px;
+      background: #d8d2c4; border-radius: 50%; transition: transform 0.18s, background 0.18s;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.4);
+    }
+    .switch input:checked + .track { background: var(--accent); border-color: var(--accent); }
+    .switch input:checked + .track::before { transform: translateX(18px); background: #fff; }
+    .switch input:focus-visible + .track { box-shadow: 0 0 0 3px var(--accent-soft); }
+
+    /* number with unit */
+    .field-unit { display: inline-flex; align-items: center; gap: 8px; color: var(--text-faint); font-size: 12px; }
+
+    /* ---------- chips ---------- */
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 0 6px; }
+    .chip {
+      border: 1px solid var(--border); background: #18150f; color: var(--text-dim);
+      border-radius: 999px; padding: 7px 14px; font-size: 12.5px; font-family: var(--font);
+      cursor: pointer; user-select: none; transition: all 0.13s;
+    }
+    .chip:hover { border-color: #4d4636; color: var(--text); }
+    .chip.active {
+      background: var(--accent-soft); border-color: var(--accent); color: var(--accent-hover);
+      font-weight: 560;
+    }
+
+    .stack { padding: 6px 0 14px; }
+    .stack > label.field-label { display: block; font-size: 13px; font-weight: 520; margin: 14px 0 7px; }
+    .help { font-size: 12px; color: var(--text-faint); line-height: 1.55; margin-top: 7px; }
+
+    /* ---------- walkthrough ---------- */
+    .walk {
+      margin: 8px 0 4px; padding: 16px 18px; border-radius: 12px;
+      background: #14110c; border: 1px solid var(--border-soft);
+    }
+    .walk .walk-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    .walk .walk-title .badge {
+      font-size: 11px; font-weight: 600; color: var(--accent-hover);
+      background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 999px; padding: 2px 9px;
+    }
+    ol.steps { counter-reset: step; list-style: none; margin: 0; padding: 0; }
+    ol.steps li {
+      position: relative; padding: 0 0 14px 38px; font-size: 13px; line-height: 1.55; color: var(--text-dim);
+    }
+    ol.steps li:last-child { padding-bottom: 0; }
+    ol.steps li::before {
+      counter-increment: step; content: counter(step);
+      position: absolute; left: 0; top: -1px; width: 24px; height: 24px;
+      display: grid; place-items: center; font-size: 12px; font-weight: 650; color: var(--accent-hover);
+      background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 50%;
+    }
+    ol.steps li:not(:last-child)::after {
+      content: ""; position: absolute; left: 11px; top: 24px; bottom: 6px; width: 1px; background: var(--border);
+    }
+    ol.steps b { color: var(--text); font-weight: 600; }
+    ol.steps code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px;
+      background: #221d15; border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; color: var(--text);
+    }
+    .walk .link {
+      display: inline-flex; align-items: center; gap: 6px; margin-top: 14px;
+      color: var(--accent-hover); text-decoration: none; font-size: 12.5px; font-weight: 560;
+      border: 1px solid var(--accent); border-radius: 8px; padding: 7px 12px; transition: background 0.13s;
+    }
+    .walk .link:hover { background: var(--accent-soft); }
+
+    /* ---------- reels list ---------- */
+    .add-row { display: flex; gap: 8px; padding: 12px 0 4px; }
+    .add-row input { flex: 1; min-width: 0; }
+    .reel-list { list-style: none; padding: 0; margin: 6px 0 6px; }
+    .reel-list li {
+      display: flex; align-items: center; gap: 8px; padding: 9px 10px; margin-top: 6px;
+      font-size: 12.5px; background: #14110c; border: 1px solid var(--border-soft); border-radius: 9px;
+    }
+    .reel-list .num { color: var(--text-faint); font-variant-numeric: tabular-nums; min-width: 18px; }
+    .reel-list .url { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-dim); }
+
+    /* ---------- buttons ---------- */
+    button {
+      font-family: var(--font); cursor: pointer; border-radius: 9px; border: 1px solid transparent;
+      font-size: 13px; transition: background 0.13s, border-color 0.13s, transform 0.05s;
+    }
+    button:active { transform: translateY(1px); }
+    .btn-primary { background: var(--accent); color: #1b120d; font-weight: 650; padding: 10px 20px; }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-ghost { background: #221d15; color: var(--text-dim); border-color: var(--border); padding: 8px 14px; }
+    .btn-ghost:hover { color: var(--text); border-color: #4d4636; }
+    .mini { width: 30px; height: 30px; padding: 0; display: inline-grid; place-items: center; font-size: 13px; }
+    .mini:disabled { opacity: 0.3; cursor: default; }
+
+    /* ---------- sticky save bar ---------- */
+    .savebar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 10;
+      background: linear-gradient(180deg, rgba(18,16,12,0.4), rgba(18,16,12,0.92) 40%);
+      backdrop-filter: blur(8px); border-top: 1px solid var(--border-soft);
+      padding: 14px 24px;
+    }
+    .savebar .inner { max-width: var(--maxw); margin: 0 auto; display: flex; align-items: center; gap: 14px; }
+    .savebar .hint { color: var(--text-faint); font-size: 12.5px; margin-right: auto; }
+    .saved { color: var(--ok); font-size: 13px; font-weight: 560; opacity: 0; transition: opacity 0.25s; }
+    .saved.show { opacity: 1; }
+
+    @media (max-width: 560px) {
+      body { padding: 28px 14px 130px; }
+      .row { grid-template-columns: 1fr; align-items: start; }
+      .row .control { justify-self: start; }
+      .card { padding: 4px 16px 8px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M8 5v14l11-7z" fill="#fff"/></svg>
+      </span>
+      <div>
+        <h1>Reels Sidebar for Claude</h1>
+        <p>Play short videos while Claude is generating. Settings sync across your Chrome profile.</p>
+      </div>
+    </header>
+
+    <!-- General -->
+    <section class="card">
+      <div class="card-head"><h2>General</h2></div>
+      <div class="row">
+        <div><div class="label">Enable extension</div><div class="desc">Master switch. When off, the sidebar never appears.</div></div>
+        <div class="control"><label class="switch"><input type="checkbox" id="enabled" /><span class="track"></span></label></div>
+      </div>
+      <div class="row">
+        <div><div class="label">Video source</div><div class="desc">Where the feed comes from.</div></div>
+        <div class="control">
+          <select id="activeSource">
+            <option value="youtube">YouTube Shorts (default)</option>
+            <option value="instagram">Instagram Reels (curated list)</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    <!-- Sidebar -->
+    <section class="card">
+      <div class="card-head"><h2>Sidebar</h2><span class="sub">Appearance &amp; behavior</span></div>
+      <div class="row">
+        <div class="label">Width</div>
+        <div class="control"><span class="field-unit"><input type="number" id="width" min="240" max="640" /> px</span></div>
+      </div>
+      <div class="row">
+        <div class="label">Side of screen</div>
+        <div class="control"><select id="side"><option value="right">Right</option><option value="left">Left</option></select></div>
+      </div>
+      <div class="row">
+        <div><div class="label">Start muted</div><div class="desc">Recommended — lets videos autoplay.</div></div>
+        <div class="control"><label class="switch"><input type="checkbox" id="defaultMute" /><span class="track"></span></label></div>
+      </div>
+      <div class="row">
+        <div><div class="label">Minimum visible time</div><div class="desc">Keeps the panel up briefly so fast replies don't flicker.</div></div>
+        <div class="control"><span class="field-unit"><input type="number" id="minVisibleMs" min="0" max="10000" step="100" /> ms</span></div>
+      </div>
+      <div class="row">
+        <div class="label">Slide animation</div>
+        <div class="control"><label class="switch"><input type="checkbox" id="animations" /><span class="track"></span></label></div>
+      </div>
+    </section>
+
+    <!-- YouTube -->
+    <section class="card">
+      <div class="card-head"><h2>YouTube</h2><span class="sub">Builds your feed</span></div>
+
+      <div class="stack">
+        <label class="field-label">Interest categories <span style="color:var(--text-faint);font-weight:400">— tap to toggle</span></label>
+        <div class="chips" id="categoryChips"></div>
+        <div class="help">Your feed is assembled from the categories you pick — no need to invent search terms. Add extras below if you like.</div>
+
+        <label class="field-label" for="terms">Custom search terms <span style="color:var(--text-faint);font-weight:400">— comma separated, optional</span></label>
+        <textarea id="terms" placeholder="skateboarding tricks, latte art, formula 1 onboard"></textarea>
+
+        <label class="field-label" for="playlistIds">Public Shorts playlist IDs <span style="color:var(--text-faint);font-weight:400">— comma separated, optional</span></label>
+        <textarea id="playlistIds" placeholder="PLxxxxxxxxxxxx, PLyyyyyyyyyyyy"></textarea>
+        <div class="help">A reliable no-setup option that works without an API key — the feed loops through the playlist.</div>
+      </div>
+
+      <div class="stack">
+        <label class="field-label" for="apiKey">YouTube Data API key <span style="color:var(--text-faint);font-weight:400">— optional, unlocks an endless feed</span></label>
+        <input type="text" id="apiKey" placeholder="AIza…" style="width:100%" />
+
+        <div class="walk">
+          <div class="walk-title"><span class="badge">Walkthrough</span> Get a free API key in ~2 minutes</div>
+          <ol class="steps">
+            <li>Open the <b>Google Cloud Console</b> and sign in. Pick a project from the top bar, or create one if you don't have any.</li>
+            <li>Go to <b>APIs &amp; Services → Library</b>. Search <code>YouTube Data API v3</code>, open it, and click <b>Enable</b>.</li>
+            <li>Open the <b>Credentials</b> tab (left menu: <b>APIs &amp; Services → Credentials</b>).</li>
+            <li>Click <b>+ Create Credentials</b> at the top, then choose <b>API key</b>. Your key is generated instantly.</li>
+            <li><b>Recommended:</b> on that key click <b>Edit / Restrict key</b> → under <b>API restrictions</b> select <code>YouTube Data API v3</code> → <b>Save</b>. (Leave <b>Application restrictions</b> set to <b>None</b> — that's fine for an extension.)</li>
+            <li>Copy the key (it starts with <code>AIza…</code>) and <b>paste it in the field above</b>. Hit Save. Done.</li>
+          </ol>
+          <a class="link" id="cloudLink" href="https://console.cloud.google.com/apis/library/youtube.googleapis.com" target="_blank" rel="noopener noreferrer">
+            Open Google Cloud Console ↗
+          </a>
+        </div>
+        <div class="help">Note: YouTube offers no API for your personal algorithmic feed, so the key powers an endless feed matched to the <b>categories you chose above</b> instead.</div>
+      </div>
+    </section>
+
+    <!-- Instagram -->
+    <section class="card">
+      <div class="card-head"><h2>Instagram Reels</h2><span class="sub">Curated · official embed only</span></div>
+      <div class="stack">
+        <div class="add-row">
+          <input type="text" id="reelInput" placeholder="https://www.instagram.com/reel/SHORTCODE/" />
+          <button class="btn-ghost" id="addReel">Add</button>
+        </div>
+        <ul class="reel-list" id="reelList"></ul>
+        <div class="help">A finite, ordered list — reorder with the arrows. Only Instagram's official embed is used; nothing is scraped.</div>
+      </div>
+    </section>
+  </div>
+
+  <div class="savebar">
+    <div class="inner">
+      <span class="hint">Changes apply to your next Claude response.</span>
+      <span class="saved" id="savedMsg">Saved ✓</span>
+      <button class="btn-primary" id="save">Save settings</button>
+    </div>
+  </div>
+
+  <script src="../storage.js"></script>
+  <script src="options.js"></script>
+</body>
+</html>

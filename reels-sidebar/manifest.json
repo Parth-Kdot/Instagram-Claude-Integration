@@ -1,0 +1,47 @@
+{
+  "manifest_version": 3,
+  "name": "Reels Sidebar for Claude",
+  "version": "0.1.0",
+  "description": "Slides a vertical short-video feed in while Claude is generating, and slides it away the moment the response finishes. Runs only on claude.ai.",
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": ["storage"],
+  "host_permissions": ["https://claude.ai/*"],
+  "options_ui": {
+    "page": "src/options/options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": ["src/page/fetchHook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://claude.ai/*"],
+      "js": [
+        "src/storage.js",
+        "src/sources/sourceInterface.js",
+        "src/sources/youtubeShorts.js",
+        "src/sources/instagramReels.js",
+        "src/content/lifecycle.js",
+        "src/content/detector.js",
+        "src/content/sidebar.js",
+        "src/content/index.js"
+      ],
+      "css": ["styles/sidebar.css"],
+      "run_at": "document_idle",
+      "world": "ISOLATED"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/player/player.html", "src/player/player.js"],
+      "matches": ["https://claude.ai/*"]
+    }
+  ]
+}

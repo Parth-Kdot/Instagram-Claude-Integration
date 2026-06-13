@@ -1,0 +1,100 @@
+/*
+ * sidebar.css — all styles scoped under #rsfc-sidebar / .rsfc-* so they cannot
+ * collide with claude.ai's own styles. The panel slides in/out via transform.
+ */
+
+#rsfc-sidebar {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  height: 100vh;
+  width: 380px;
+  z-index: 2147483000; /* below the very top but above app chrome */
+  background: #0b0b0d;
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.45);
+  transition: transform 0.32s ease;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Closed (off-screen) states per side. */
+#rsfc-sidebar[data-side="right"] { right: 0; transform: translateX(100%); }
+#rsfc-sidebar[data-side="left"]  { left: 0;  transform: translateX(-100%); }
+
+/* Open state slides fully into view. */
+#rsfc-sidebar.rsfc-open { transform: translateX(0); }
+
+#rsfc-sidebar.rsfc-no-anim { transition: none; }
+
+.rsfc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #141417;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  flex: 0 0 auto;
+}
+
+.rsfc-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-right: auto;
+  opacity: 0.9;
+}
+
+.rsfc-btn {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  width: 32px;
+  height: 32px;
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease;
+}
+.rsfc-btn:hover { background: rgba(255, 255, 255, 0.18); }
+
+.rsfc-video-host {
+  position: relative;
+  flex: 1 1 auto;
+  overflow: hidden;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The actual player/iframe fills the host. */
+.rsfc-video-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  display: block;
+}
+
+.rsfc-empty {
+  padding: 24px;
+  font-size: 13px;
+  line-height: 1.5;
+  text-align: center;
+  opacity: 0.75;
+}
+
+.rsfc-nav {
+  flex: 0 0 auto;
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  padding: 10px;
+  background: #141417;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+.rsfc-nav .rsfc-btn { width: 44px; height: 36px; font-size: 13px; }
