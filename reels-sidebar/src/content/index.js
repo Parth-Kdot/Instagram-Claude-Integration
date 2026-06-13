@@ -67,9 +67,22 @@
   // the lifecycle (any in-flight panel is for the old chat) and re-point the
   // DOM observer at the new conversation container.
   function onUrlMaybeChanged() {
-    if (location.href === lastUrl) return;
-    lastUrl = location.href;
+    const prev = lastUrl;
+    const cur = location.href;
+    if (cur === prev) return;
+    lastUrl = cur;
     if (!active) return;
+    // Sending the FIRST message in a new chat changes the URL from /new to
+    // /chat/<id>. That is the SAME generation materializing its conversation
+    // URL — NOT a conversation switch — so we must NOT tear down the panel here
+    // (doing so killed the video ~1s into every new chat).
+    const wasNew = /\/new(\b|$)/.test(prev) || prev.endsWith('/new');
+    const nowChat = cur.indexOf('/chat/') >= 0;
+    if (wasNew && nowChat) {
+      RSFC.log('nav: /new -> chat (same generation); keeping panel');
+      return;
+    }
+    RSFC.log('nav: conversation switch -> reset');
     try {
       lifecycle.reset();              // drop any panel from the previous chat
       detector.reattachObserver();    // re-bind MutationObserver to new container
