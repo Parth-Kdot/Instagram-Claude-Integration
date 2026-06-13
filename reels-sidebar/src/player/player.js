@@ -71,9 +71,12 @@
   }
 
   function ytParams() {
+    // NOTE: we intentionally do NOT send an `origin` param. The page origin here
+    // is chrome-extension://<id>, which is not an http(s) origin; YouTube's embed
+    // origin check rejects it and throws error 153/150, blanking every video.
+    // Omitting origin lets the embed play; postMessage control still works.
     return 'enablejsapi=1&autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=1'
-      + '&mute=' + (currentMuted ? 1 : 0)
-      + '&origin=' + encodeURIComponent(location.origin);
+      + '&mute=' + (currentMuted ? 1 : 0);
   }
 
   function attachHandshake() {
@@ -153,7 +156,10 @@
       if (!ytReadyPosted) { ytReadyPosted = true; toParent('ready'); }
       if (data.info.playerState === 0) toParent('ended'); // 0 = ended
     }
-    if (data.event === 'onError') toParent('error');
+    if (data.event === 'onError') {
+      log('yt onError', JSON.stringify(data));
+      toParent('error', (data && (data.info !== undefined ? data.info : data.data)));
+    }
   }
 
   // --- messages from the content-script controller ---------------------------

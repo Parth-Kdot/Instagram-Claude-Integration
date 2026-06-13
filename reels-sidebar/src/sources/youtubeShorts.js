@@ -73,7 +73,7 @@
       this.frame = new RSFC.PlayerFrame(container);
       this._showOverlay(this.usingKey ? 'Loading videos…' : 'Loading playlist…');
       this.frame.on((d) => {
-        RSFC.log('yt player msg: ' + d.type);
+        RSFC.log('yt player msg: ' + d.type + (d.info !== undefined ? (' info=' + d.info) : ''));
         // Auto-advance rules:
         //  - 'error' (dead/blocked video): skip in either mode.
         //  - 'ended': only key mode advances; in no-key mode the looping
