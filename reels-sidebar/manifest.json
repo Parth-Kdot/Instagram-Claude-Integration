@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "matches": ["https://claude.ai/*"],
-      "js": ["src/page/fetchHook.js"],
+      "js": ["src/page/fetchHook.js", "src/page/ytController.js"],
       "run_at": "document_start",
       "world": "MAIN"
     },

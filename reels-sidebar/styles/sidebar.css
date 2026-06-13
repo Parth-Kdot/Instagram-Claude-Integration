@@ -72,10 +72,16 @@
   justify-content: center;
 }
 
-/* The actual player/iframe fills the host. */
-.rsfc-video-frame {
-  width: 100%;
-  height: 100%;
+/* The actual player/iframe fills the host. The YouTube IFrame API replaces our
+ * mount element with its own <iframe> (no rsfc class), so we also target any
+ * iframe inside the host to guarantee it fills the panel rather than collapsing
+ * to a tiny/zero size (which rendered as a black box). */
+.rsfc-video-frame,
+.rsfc-video-host > iframe {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
   border: 0;
   display: block;
 }

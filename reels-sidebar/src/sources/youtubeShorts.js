@@ -1,23 +1,19 @@
 /*
  * youtubeShorts.js — default video source. Hybrid, best-for-the-user design.
  *
- * A user's *personalized* Shorts feed (their own algorithm) is not available
- * through any official, embeddable YouTube mechanism, and youtube.com refuses to
- * be iframed at the top level. So we approximate "what they want to see" from the
- * user's chosen interest CATEGORIES (+ optional custom terms):
- *
  *   - KEY MODE (optional free Data API v3 key): search.list with
- *       videoEmbeddable=true & videoDuration=short over the active queries, with
- *       pageToken pagination, buffering a rolling, de-duplicated queue of IDs ->
- *       endless, interest-matched.
- *   - NO-KEY MODE: play a configurable public Shorts PLAYLIST ID (reliable).
+ *       videoEmbeddable=true & videoDuration=short over the active queries
+ *       (built from the user's chosen interest categories + custom terms), with
+ *       pageToken pagination and a rolling, de-duplicated queue of IDs.
+ *   - NO-KEY MODE: play a configurable public Shorts PLAYLIST ID.
  *
- * EMBEDDING: the YouTube player iframe is created DIRECTLY in the claude.ai page
- * (origin https://claude.ai). We tried hosting it inside an extension page first,
- * but YouTube rejects embeds whose parent origin is chrome-extension:// with
- * error 153 — claude.ai's own CSP happily allows youtube.com frames, so a direct
- * embed is both simpler and actually works. We drive playback with YouTube's
- * native enablejsapi postMessage protocol straight from the content script.
+ * PLAYBACK: handled by the official YouTube IFrame Player API, driven from the
+ * MAIN world by src/page/ytController.js (the content script lives in an
+ * isolated world and cannot touch window.YT). The player is mounted DIRECTLY in
+ * the claude.ai page — embedding from a chrome-extension:// origin made YouTube
+ * reject every video with error 153, while claude.ai's CSP happily allows
+ * youtube.com frames AND the IFrame API script. We bridge to the controller
+ * with window.postMessage. This is what reliably starts muted autoplay.
  *
  * Implements the VideoSource contract from sourceInterface.js.
  */
@@ -25,9 +21,7 @@
   'use strict';
 
   const RSFC = (window.RSFC = window.RSFC || {});
-  const YT_ORIGIN = 'https://www.youtube.com';
 
-  /** Resolve active categories (preset ids) + custom terms into query strings. */
   function buildQueries(config) {
     const presets = (RSFC.storage && RSFC.storage.PRESET_CATEGORIES) || [];
     const byId = {};
@@ -35,25 +29,25 @@
     const fromCats = (config.categories || []).map((id) => byId[id]).filter(Boolean);
     const fromTerms = (config.terms || []).filter(Boolean);
     const all = fromCats.concat(fromTerms);
-    return all.length ? all : ['shorts']; // never empty
+    return all.length ? all : ['shorts'];
   }
 
   class YouTubeShorts extends RSFC.BaseSource {
     constructor() {
       super();
-      this.iframe = null;
-      this.onMsg = null;
-      this.playerId = 1;
-      this.queue = [];          // buffered video IDs (key mode)
+      this.mountId = 'rsfc-yt-mount-' + (RSFC._ytSeq = (RSFC._ytSeq || 0) + 1);
+      this.mountEl = null;
+      this.onEvt = null;
+      this.queue = [];
       this.queuePos = -1;
-      this.seen = new Set();    // de-dupe across pages / query rotation
+      this.seen = new Set();
       this.queries = [];
       this.queryIdx = 0;
       this.pageToken = '';
       this.usingKey = false;
       this.playlistMode = false;
       this.fetching = false;
-      this.advancing = false;   // re-entrancy guard so 'ended'/'error' don't stack
+      this.advancing = false;
       this._overlay = null;
       this._retryScheduled = false;
     }
@@ -70,16 +64,14 @@
         return;
       }
 
-      // Create the player iframe directly in the page (origin https://claude.ai).
-      this.iframe = document.createElement('iframe');
-      this.iframe.className = 'rsfc-video-frame';
-      this.iframe.setAttribute('allow',
-        'autoplay; encrypted-media; fullscreen; picture-in-picture; accelerometer; clipboard-write; gyroscope');
-      this.iframe.setAttribute('allowfullscreen', 'true');
-      container.appendChild(this.iframe);
+      // The element the IFrame API will replace with the player iframe.
+      this.mountEl = document.createElement('div');
+      this.mountEl.id = this.mountId;
+      this.mountEl.className = 'rsfc-video-frame';
+      container.appendChild(this.mountEl);
 
-      this.onMsg = (e) => this._handleYouTube(e);
-      window.addEventListener('message', this.onMsg);
+      this.onEvt = (e) => this._handleEvt(e);
+      window.addEventListener('message', this.onEvt);
 
       this._showOverlay(this.usingKey ? 'Loading videos…' : 'Loading playlist…');
       RSFC.log('yt.mount usingKey=' + this.usingKey + ' playlists=' + playlistIds.length
@@ -88,80 +80,43 @@
       if (this.usingKey) {
         this._fillQueue().then(() => {
           RSFC.log('yt initial fill: queue=' + this.queue.length);
-          if (this.queue.length) { this.queuePos = 0; this._playCurrent(); }
-          else this._showOverlay('No videos returned. Check that your API key is valid, '
-            + 'the YouTube Data API v3 is enabled, and your selected categories aren\'t empty.');
+          if (this.queue.length) {
+            this.queuePos = 0;
+            this._send({ type: 'init', mountId: this.mountId, videoId: this.queue[0], muted: this.muted });
+          } else {
+            this._showOverlay('No videos returned. Check that your API key is valid, the YouTube '
+              + 'Data API v3 is enabled, and your selected categories aren\'t empty.');
+          }
         });
       } else {
         this.playlistMode = true;
-        this._loadPlaylist(playlistIds[0]);
+        this._send({ type: 'init', mountId: this.mountId, playlistId: playlistIds[0], muted: this.muted });
       }
     }
 
-    // ---- YouTube embed control (native enablejsapi postMessage protocol) ------
-    _params() {
-      return 'enablejsapi=1&autoplay=1&playsinline=1&rel=0&modestbranding=1&controls=1&fs=1'
-        + '&mute=' + (this.muted ? 1 : 0)
-        + '&origin=' + encodeURIComponent(location.origin);
+    // ---- bridge to the MAIN-world YouTube controller --------------------------
+    _send(msg) {
+      msg.source = 'rsfc-yt-cmd';
+      try { window.postMessage(msg, location.origin); } catch (e) {}
     }
 
-    _attachHandshake() {
-      if (!this.iframe) return;
-      this.iframe.onload = () => {
-        try {
-          this.iframe.contentWindow.postMessage(
-            JSON.stringify({ event: 'listening', id: this.playerId, channel: 'widget' }), YT_ORIGIN);
-        } catch (e) {}
-      };
-    }
-
-    _loadVideo(id) {
-      if (!this.iframe) return;
-      this._attachHandshake();
-      this.iframe.src = YT_ORIGIN + '/embed/' + encodeURIComponent(id) + '?' + this._params();
-    }
-
-    _loadPlaylist(listId) {
-      if (!this.iframe) return;
-      this._attachHandshake();
-      this.iframe.src = YT_ORIGIN + '/embed/videoseries?list=' + encodeURIComponent(listId)
-        + '&loop=1&' + this._params();
-    }
-
-    _command(func) {
-      if (!this.iframe || !this.iframe.contentWindow) return;
-      try {
-        this.iframe.contentWindow.postMessage(
-          JSON.stringify({ event: 'command', func: func, args: [], id: this.playerId, channel: 'widget' }),
-          YT_ORIGIN);
-      } catch (e) {}
-    }
-
-    _handleYouTube(e) {
-      if (e.origin !== YT_ORIGIN) return;
-      if (!this.iframe || e.source !== this.iframe.contentWindow) return;
-      let d = e.data;
-      if (typeof d === 'string') { try { d = JSON.parse(d); } catch (_) { return; } }
-      if (!d || !d.event) return;
-
-      if (d.event === 'onReady' || d.event === 'apiInfoDelivery' || d.event === 'initialDelivery') {
+    _handleEvt(e) {
+      if (e.source !== window) return;
+      const d = e.data;
+      if (!d || d.source !== 'rsfc-yt-evt') return;
+      if (d.type === 'ready' || d.type === 'playing') {
         this._hideOverlay();
-        this._command('playVideo'); // nudge playback (helps when autoplay is gated)
-      } else if (d.event === 'onError') {
-        RSFC.log('yt onError info=' + d.info); // 101/150 = embedding disabled; skip it
+      } else if (d.type === 'error') {
+        RSFC.log('yt error code=' + d.code); // 101/150 = embedding disabled; skip it
         this.getNext();
-      } else if (d.event === 'infoDelivery' && d.info && typeof d.info.playerState !== 'undefined') {
-        this._hideOverlay();
-        // 0 = ended. In key mode we advance; in playlist mode the videoseries
-        // embed auto-advances itself, so we must not double-advance.
-        if (d.info.playerState === 0 && this.usingKey) this.getNext();
+      } else if (d.type === 'ended') {
+        if (this.usingKey) this.getNext();
       }
     }
 
     // ---- Data API (key mode) --------------------------------------------------
     _currentQuery() { return this.queries[this.queryIdx % this.queries.length]; }
 
-    /** Fetch a page; resolves to the number of NEW (unseen) IDs added. */
     _fillQueue() {
       if (this.fetching) return Promise.resolve(0);
       this.fetching = true;
@@ -189,7 +144,7 @@
           fresh.forEach((id) => this.seen.add(id));
           this.queue = this.queue.concat(fresh);
           if (data.nextPageToken) this.pageToken = data.nextPageToken;
-          else { this.pageToken = ''; this.queryIdx++; } // rotate to next interest query
+          else { this.pageToken = ''; this.queryIdx++; }
           return fresh.length;
         })
         .catch((err) => {
@@ -204,10 +159,9 @@
     }
 
     _playCurrent() {
-      if (!this.iframe) return;
       const id = this.queue[this.queuePos];
       RSFC.log('yt play idx=' + this.queuePos + ' id=' + id);
-      if (id) this._loadVideo(id);
+      if (id) this._send({ type: 'load', videoId: id, muted: this.muted });
     }
 
     _maybePrefetch() {
@@ -223,21 +177,17 @@
       this._retryScheduled = true;
       setTimeout(() => {
         this._retryScheduled = false;
-        if (!this.iframe) return;
+        if (!this.mountEl) return;
         this._fillQueue().then((added) => {
-          if (added > 0) {
-            this.queuePos = this.queue.length - added;
-            this._playCurrent();
-            this._maybePrefetch();
-          }
+          if (added > 0) { this.queuePos = this.queue.length - added; this._playCurrent(); this._maybePrefetch(); }
         });
       }, 5000);
     }
 
     // ---- VideoSource contract -------------------------------------------------
     getNext() {
-      if (!this.iframe) return;
-      if (this.playlistMode) { this._command('nextVideo'); return; }
+      if (!this.mountEl) return;
+      if (this.playlistMode) { this._send({ type: 'cmd', func: 'nextVideo' }); return; }
       if (this.advancing) return;
       this.advancing = true;
       this.queuePos++;
@@ -255,17 +205,17 @@
     }
 
     getPrevious() {
-      if (!this.iframe) return;
-      if (this.playlistMode) { this._command('previousVideo'); return; }
+      if (!this.mountEl) return;
+      if (this.playlistMode) { this._send({ type: 'cmd', func: 'previousVideo' }); return; }
       if (this.queuePos > 0) { this.queuePos--; this._playCurrent(); }
     }
 
-    play() { this._command('playVideo'); }
-    pause() { this._command('pauseVideo'); }
+    play() { this._send({ type: 'cmd', func: 'playVideo' }); }
+    pause() { this._send({ type: 'cmd', func: 'pauseVideo' }); }
 
     setMuted(muted) {
       this.muted = !!muted;
-      this._command(muted ? 'mute' : 'unMute');
+      this._send({ type: 'cmd', func: muted ? 'mute' : 'unMute' });
     }
 
     // ---- status overlay -------------------------------------------------------
@@ -274,13 +224,8 @@
       if (!this._overlay) {
         const o = document.createElement('div');
         o.className = 'rsfc-empty';
-        o.style.position = 'absolute';
-        o.style.inset = '0';
-        o.style.display = 'flex';
-        o.style.alignItems = 'center';
-        o.style.justifyContent = 'center';
-        o.style.background = 'rgba(0,0,0,0.82)';
-        o.style.zIndex = '2';
+        o.style.cssText = 'position:absolute;inset:0;display:flex;align-items:center;'
+          + 'justify-content:center;background:rgba(0,0,0,0.82);z-index:2';
         this._overlay = o;
         this.container.appendChild(o);
       }
@@ -293,10 +238,13 @@
     }
 
     destroy() {
-      if (this.onMsg) { window.removeEventListener('message', this.onMsg); this.onMsg = null; }
+      this._send({ type: 'destroy' });
+      if (this.onEvt) { window.removeEventListener('message', this.onEvt); this.onEvt = null; }
       this._hideOverlay();
-      if (this.iframe && this.iframe.parentNode) this.iframe.parentNode.removeChild(this.iframe);
-      this.iframe = null;
+      // The player iframe replaced mountEl; remove whatever is left.
+      const left = document.getElementById(this.mountId);
+      if (left && left.parentNode) left.parentNode.removeChild(left);
+      this.mountEl = null;
       this.queue = [];
       this.queuePos = -1;
       this.seen = new Set();
